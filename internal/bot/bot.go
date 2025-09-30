@@ -1,34 +1,42 @@
-// internal/bot/bot.go
 package bot
 
 import (
 	"fmt"
-	"github.com/bwmarrin/discordgo"
+
+	"github.com/Diony-source/CroupierBot/internal/command"
 	"github.com/Diony-source/CroupierBot/internal/config"
+	"github.com/bwmarrin/discordgo"
 )
 
-// Bot struct holds the core Discord session.
+// Bot struct now holds the command handler.
 type Bot struct {
-	Session *discordgo.Session
+	Session    *discordgo.Session
+	CmdHandler *command.Handler
 }
 
-// New creates a new Bot instance and its Discord session.
+// New creates a new Bot instance, now with a command handler.
 func New() (*Bot, error) {
 	s, err := discordgo.New("Bot " + config.Cfg.BotToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Discord session: %w", err)
 	}
-	return &Bot{Session: s}, nil
+
+	return &Bot{
+		Session:    s,
+		CmdHandler: command.NewHandler(),
+	}, nil
 }
 
-// Start opens a websocket connection to Discord and registers handlers.
+// Start now registers commands and handlers before connecting.
 func (b *Bot) Start() error {
-	fmt.Println("Registering event handlers...")
-	b.registerHandlers() // YENİ EKLENEN SATIR
+	fmt.Println("Registering commands...")
+	b.registerCommands()
 
-	// We need to specify which events we want to receive from Discord.
-	// For now, we only need to know about messages in guilds.
-	b.Session.Identify.Intents = discordgo.IntentsGuildMessages // YENİ EKLENEN SATIR
+	fmt.Println("Registering event handlers...")
+	b.registerHandlers()
+
+	// We must specify the Intents (what our bot wants to listen to).
+	b.Session.Identify.Intents = discordgo.IntentsGuildMessages
 
 	fmt.Println("Attempting to connect to Discord...")
 	return b.Session.Open()
