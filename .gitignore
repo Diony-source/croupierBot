@@ -1,0 +1,6 @@
+# Configuration file - DO NOT COMMIT!
+config.json
+
+# IDE/Editor specific files
+.vscode/
+.idea/
