@@ -1,7 +1,11 @@
 // internal/bot/handlers.go
 package bot
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"fmt"
+
+	"github.com/bwmarrin/discordgo"
+)
 
 // registerHandlers registers all the event handlers for the bot.
 func (b *Bot) registerHandlers() {
