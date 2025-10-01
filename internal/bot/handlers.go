@@ -8,7 +8,7 @@ import (
 // registerCommands registers all command definitions to the command handler.
 func (b *Bot) registerCommands() {
 	definitions.RegisterGreetingCommands(b.CmdHandler)
-	// Add other command groups here in the future
+	definitions.RegisterWoWCommands(b.CmdHandler)
 }
 
 // registerHandlers registers all the event handlers for the bot.
