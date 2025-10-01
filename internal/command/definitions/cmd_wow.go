@@ -2,6 +2,8 @@ package definitions
 
 import (
 	"fmt"
+	"strings"
+	"time" // NEW: We need this package for the timestamp.
 
 	"github.com/Diony-source/CroupierBot/internal/command"
 	"github.com/Diony-source/CroupierBot/internal/wow"
@@ -14,7 +16,6 @@ type AffixCommand struct{}
 func (c *AffixCommand) Name() string { return "affix" }
 
 func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-	// Let the user know we are fetching the data.
 	msg, err := s.ChannelMessageSend(m.ChannelID, "Fetching current Mythic+ affixes...")
 	if err != nil {
 		fmt.Println("Error sending initial message:", err)
@@ -28,15 +29,36 @@ func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate,
 		return
 	}
 
-	// Create a nice-looking response using Discord's "Embed" feature.
+	// --- EMBED IMPROVEMENTS START HERE ---
+
+	// Determine the color and a more descriptive title based on the main affix.
+	var embedColor int
+	var weekType string
+	if strings.Contains(affixes.Title, "Tyrannical") {
+		embedColor = 0xC41E3A // A deep red color for Tyrannical
+		weekType = "Tyrannical Week"
+	} else {
+		embedColor = 0x3498DB // A nice blue color for Fortified
+		weekType = "Fortified Week"
+	}
+
+	// Create a new, more beautiful embed.
 	embed := &discordgo.MessageEmbed{
-		Title:       "This Week's Mythic+ Affixes",
-		Description: fmt.Sprintf("**%s**", affixes.Title),
-		Color:       0x2ECC71, // A nice green color
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    "CroupierBot",
+			IconURL: "https://wow.zamimg.com/images/wow/icons/large/inv_relics_key_01.jpg", // M+ Keystone Icon in author line
+		},
+		Title:       weekType,
+		Description: "Here are the active affixes for this week:",
+		Color:       embedColor,
 		Fields:      []*discordgo.MessageEmbedField{},
+		Thumbnail: &discordgo.MessageEmbedThumbnail{
+			URL: "https://wow.zamimg.com/images/wow/icons/large/inv_relics_key_01.jpg", // M+ Keystone Icon as thumbnail
+		},
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "Data provided by Raider.IO",
 		},
+		Timestamp: time.Now().Format(time.RFC3339), // Adds the current time to the footer.
 	}
 
 	for _, affix := range affixes.AffixDetails {
@@ -47,14 +69,13 @@ func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate,
 		})
 	}
 
-	// --- DÜZELTME BURADA ---
-	// 1. We create a slice variable that holds our embed(s).
+	// --- EMBED IMPROVEMENTS END HERE ---
+
 	embedsToSend := []*discordgo.MessageEmbed{embed}
 
-	// 2. We edit the message, passing a POINTER to our slice variable.
 	s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Content: new(string),
-		Embeds:  &embedsToSend, // The "&" symbol gets the memory address (pointer).
+		Embeds:  &embedsToSend,
 		ID:      msg.ID,
 		Channel: m.ChannelID,
 	})
