@@ -10,7 +10,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// --- Affix Komutu ---
+// --- Affix Command (No changes) ---
 type AffixCommand struct{}
 
 func (c *AffixCommand) Name() string { return "affix" }
@@ -53,49 +53,45 @@ func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate,
 	s.ChannelMessageEditComplex(&discordgo.MessageEdit{Content: new(string), Embeds: &embedsToSend, ID: msg.ID, Channel: m.ChannelID})
 }
 
-// --- Rio Komutu ---
+// --- Rio Command (Cleaned up) ---
 type RioCommand struct{}
 
 func (c *RioCommand) Name() string { return "rio" }
 
 func (c *RioCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	if len(args) < 2 {
-		s.ChannelMessageSend(m.ChannelID, "Please use the format: `!rio <character-name> <server-name>`. For example: `!rio Methodjosh Twisting-Nether`")
+		s.ChannelMessageSend(m.ChannelID, "Please use the format: `!rio <character-name> <server-name>`. Example: `!rio Methodjosh Twisting-Nether`")
 		return
 	}
 	characterName := args[0]
-	serverName := args[1]
+	serverName := strings.Join(args[1:], "-")
 
 	msg, _ := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Fetching Raider.IO profile for %s-%s...", characterName, serverName))
 
-	profile, err := wow.GetCharacterProfile(characterName, serverName, "eu") // Şimdilik bölgeyi EU varsayıyoruz
+	profile, err := wow.GetCharacterProfile(characterName, serverName, "eu")
 	if err != nil {
-		s.ChannelMessageEdit(msg.ChannelID, msg.ID, "Could not find character. Please check the spelling of the character and server name (e.g., `Twisting-Nether`).")
+		s.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("Could not find character. Please check the spelling of `%s-%s`.", characterName, serverName))
 		fmt.Println("Error getting character profile:", err)
 		return
 	}
 
 	mythicPlusScore := "N/A"
-	if profile.MythicPlusScores != nil {
-		mythicPlusScore = fmt.Sprintf("%.2f", profile.MythicPlusScores.All)
+	if len(profile.MythicPlusScoresBySeason) > 0 {
+		mythicPlusScore = fmt.Sprintf("%.1f", profile.MythicPlusScoresBySeason[0].Scores.All)
 	}
 
 	raidProgress := "N/A"
-	if amirdrassil, ok := profile.RaidProgression["amirdrassil-the-dreams-hope"]; ok {
-		raidProgress = amirdrassil.Summary
+	// The key is now corrected based on our debug output.
+	if progress, ok := profile.RaidProgression["manaforge-omega"]; ok {
+		raidProgress = progress.Summary
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Author: &discordgo.MessageEmbedAuthor{
-			Name:    fmt.Sprintf("%s - %s %s", profile.Name, profile.Race, profile.Class),
-			IconURL: s.State.User.AvatarURL(""),
-		},
-		Title: "Raider.IO Profile",
-		URL:   profile.ProfileURL,
-		Color: 0xff8000, // Raider.IO turuncusu
-		Thumbnail: &discordgo.MessageEmbedThumbnail{
-			URL: profile.ThumbnailURL,
-		},
+		Author:    &discordgo.MessageEmbedAuthor{Name: fmt.Sprintf("%s - %s %s", profile.Name, profile.Race, profile.Class), IconURL: s.State.User.AvatarURL("")},
+		Title:     "Raider.IO Profile",
+		URL:       profile.ProfileURL,
+		Color:     0xff8000,
+		Thumbnail: &discordgo.MessageEmbedThumbnail{URL: profile.ThumbnailURL},
 		Fields: []*discordgo.MessageEmbedField{
 			{Name: "M+ Score", Value: mythicPlusScore, Inline: true},
 			{Name: "Spec", Value: profile.ActiveSpecName, Inline: true},
@@ -109,8 +105,7 @@ func (c *RioCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, a
 	s.ChannelMessageEditComplex(&discordgo.MessageEdit{Content: new(string), Embeds: &embedsToSend, ID: msg.ID, Channel: m.ChannelID})
 }
 
-// --- Komut Kaydı ---
 func RegisterWoWCommands(h *command.Handler) {
 	h.RegisterCommand(&AffixCommand{})
-	h.RegisterCommand(&RioCommand{}) // Yeni komutu kaydet
+	h.RegisterCommand(&RioCommand{})
 }
