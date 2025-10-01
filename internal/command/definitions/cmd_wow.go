@@ -14,8 +14,8 @@ import (
 type AffixCommand struct{}
 
 func (c *AffixCommand) Name() string { return "affix" }
-
 func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	// ... (Bu komutun kodu aynı kalıyor)
 	msg, err := s.ChannelMessageSend(m.ChannelID, "Fetching current Mythic+ affixes...")
 	if err != nil {
 		fmt.Println("Error sending initial message:", err)
@@ -30,22 +30,13 @@ func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate,
 	var embedColor int
 	var weekType string
 	if strings.Contains(affixes.Title, "Tyrannical") {
-		embedColor = 0xC41E3A // Tyrannical için kırmızı
+		embedColor = 0xC41E3A
 		weekType = "Tyrannical Week"
 	} else {
-		embedColor = 0x3498DB // Fortified için mavi
+		embedColor = 0x3498DB
 		weekType = "Fortified Week"
 	}
-	embed := &discordgo.MessageEmbed{
-		Author:      &discordgo.MessageEmbedAuthor{Name: "CroupierBot", IconURL: "https://wow.zamimg.com/images/wow/icons/large/inv_relics_key_01.jpg"},
-		Title:       weekType,
-		Description: "Here are the active affixes for this week:",
-		Color:       embedColor,
-		Fields:      []*discordgo.MessageEmbedField{},
-		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://wow.zamimg.com/images/wow/icons/large/inv_relics_key_01.jpg"},
-		Footer:      &discordgo.MessageEmbedFooter{Text: "Data provided by Raider.IO"},
-		Timestamp:   time.Now().Format(time.RFC3339),
-	}
+	embed := &discordgo.MessageEmbed{Author: &discordgo.MessageEmbedAuthor{Name: "CroupierBot", IconURL: "https://wow.zamimg.com/images/wow/icons/large/inv_relics_key_01.jpg"}, Title: weekType, Description: "Here are the active affixes for this week:", Color: embedColor, Fields: []*discordgo.MessageEmbedField{}, Thumbnail: &discordgo.MessageEmbedThumbnail{URL: "https://wow.zamimg.com/images/wow/icons/large/inv_relics_key_01.jpg"}, Footer: &discordgo.MessageEmbedFooter{Text: "Data provided by Raider.IO"}, Timestamp: time.Now().Format(time.RFC3339)}
 	for _, affix := range affixes.AffixDetails {
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: affix.Name, Value: affix.Description, Inline: false})
 	}
@@ -53,51 +44,73 @@ func (c *AffixCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate,
 	s.ChannelMessageEditComplex(&discordgo.MessageEdit{Content: new(string), Embeds: &embedsToSend, ID: msg.ID, Channel: m.ChannelID})
 }
 
-// --- Rio Command (Cleaned up) ---
+// --- Rio Command (No changes) ---
 type RioCommand struct{}
 
 func (c *RioCommand) Name() string { return "rio" }
-
 func (c *RioCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	// ... (Bu komutun kodu aynı kalıyor)
 	if len(args) < 2 {
 		s.ChannelMessageSend(m.ChannelID, "Please use the format: `!rio <character-name> <server-name>`. Example: `!rio Methodjosh Twisting-Nether`")
 		return
 	}
 	characterName := args[0]
 	serverName := strings.Join(args[1:], "-")
-
 	msg, _ := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Fetching Raider.IO profile for %s-%s...", characterName, serverName))
-
 	profile, err := wow.GetCharacterProfile(characterName, serverName, "eu")
 	if err != nil {
 		s.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("Could not find character. Please check the spelling of `%s-%s`.", characterName, serverName))
 		fmt.Println("Error getting character profile:", err)
 		return
 	}
-
 	mythicPlusScore := "N/A"
 	if len(profile.MythicPlusScoresBySeason) > 0 {
 		mythicPlusScore = fmt.Sprintf("%.1f", profile.MythicPlusScoresBySeason[0].Scores.All)
 	}
-
 	raidProgress := "N/A"
-	// The key is now corrected based on our debug output.
 	if progress, ok := profile.RaidProgression["manaforge-omega"]; ok {
 		raidProgress = progress.Summary
 	}
+	embed := &discordgo.MessageEmbed{Author: &discordgo.MessageEmbedAuthor{Name: fmt.Sprintf("%s - %s %s", profile.Name, profile.Race, profile.Class), IconURL: s.State.User.AvatarURL("")}, Title: "Raider.IO Profile", URL: profile.ProfileURL, Color: 0xff8000, Thumbnail: &discordgo.MessageEmbedThumbnail{URL: profile.ThumbnailURL}, Fields: []*discordgo.MessageEmbedField{{Name: "M+ Score", Value: mythicPlusScore, Inline: true}, {Name: "Spec", Value: profile.ActiveSpecName, Inline: true}, {Name: "Raid Progress (Amirdrassil)", Value: raidProgress, Inline: false}}, Footer: &discordgo.MessageEmbedFooter{Text: "Data provided by Raider.IO"}, Timestamp: time.Now().Format(time.RFC3339)}
+	embedsToSend := []*discordgo.MessageEmbed{embed}
+	s.ChannelMessageEditComplex(&discordgo.MessageEdit{Content: new(string), Embeds: &embedsToSend, ID: msg.ID, Channel: m.ChannelID})
+}
+
+// --- Char Command (NEW) ---
+type CharCommand struct{}
+
+func (c *CharCommand) Name() string { return "char" }
+func (c *CharCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	if len(args) < 2 {
+		s.ChannelMessageSend(m.ChannelID, "Please use the format: `!char <character-name> <server-name>`. Example: `!char Freythemercy Silvermoon`")
+		return
+	}
+	characterName := args[0]
+	serverName := strings.Join(args[1:], " ") // Blizzard API uses spaces for server names
+
+	msg, _ := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Fetching Blizzard Armory profile for %s-%s...", characterName, serverName))
+
+	summary, err := wow.GetCharacterEquipment(characterName, serverName, "eu") // Assuming EU region
+	if err != nil {
+		s.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("Could not find character on Blizzard Armory. Please check the spelling of `%s-%s`.", characterName, serverName))
+		fmt.Println("Error getting character equipment:", err)
+		return
+	}
 
 	embed := &discordgo.MessageEmbed{
-		Author:    &discordgo.MessageEmbedAuthor{Name: fmt.Sprintf("%s - %s %s", profile.Name, profile.Race, profile.Class), IconURL: s.State.User.AvatarURL("")},
-		Title:     "Raider.IO Profile",
-		URL:       profile.ProfileURL,
-		Color:     0xff8000,
-		Thumbnail: &discordgo.MessageEmbedThumbnail{URL: profile.ThumbnailURL},
-		Fields: []*discordgo.MessageEmbedField{
-			{Name: "M+ Score", Value: mythicPlusScore, Inline: true},
-			{Name: "Spec", Value: profile.ActiveSpecName, Inline: true},
-			{Name: "Raid Progress (Amirdrassil)", Value: raidProgress, Inline: false},
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    fmt.Sprintf("%s - %s", summary.Character.Name, summary.Character.Realm.Slug),
+			IconURL: s.State.User.AvatarURL(""),
 		},
-		Footer:    &discordgo.MessageEmbedFooter{Text: "Data provided by Raider.IO"},
+		Title: "Character Armory Profile",
+		Color: 0x00AEFF, // Blizzard Blue
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "Equipped Item Level", Value: fmt.Sprintf("**%.2f**", summary.EquippedItemLevel), Inline: true},
+			{Name: "Class & Spec", Value: fmt.Sprintf("%s (%s)", summary.CharacterClass.Name, summary.ActiveSpec.Name), Inline: true},
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Data provided by Blizzard API",
+		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
@@ -105,7 +118,9 @@ func (c *RioCommand) Execute(s *discordgo.Session, m *discordgo.MessageCreate, a
 	s.ChannelMessageEditComplex(&discordgo.MessageEdit{Content: new(string), Embeds: &embedsToSend, ID: msg.ID, Channel: m.ChannelID})
 }
 
+// --- Command Registration (UPDATED) ---
 func RegisterWoWCommands(h *command.Handler) {
 	h.RegisterCommand(&AffixCommand{})
 	h.RegisterCommand(&RioCommand{})
+	h.RegisterCommand(&CharCommand{}) // Register the new command
 }
